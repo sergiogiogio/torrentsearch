@@ -1,0 +1,34 @@
+{
+  "name": "torrentsearch",
+  "description": "CLI to search torrent sites and stream with peerflix.",
+  "version": "7.0.3",
+  "homepage": "https://github.com/",
+  "author": {
+    "name": "ItzBlitz98"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "bugs": {
+    "url": "https://github.com/"
+  },
+  "licenses": [
+    {
+      "type": "MIT"
+    }
+  ],
+  "bin": {
+    "torrentflix": "bin/torrentflix"
+  },
+  "scripts": {},
+  "preferGlobal": true,
+  "dependencies": {
+	  "chalk": "*",
+	  "torrentflix": "*",
+	  "filesize-parser": "*",
+	  "date.js": "*"
+  },
+  "devDependencies": {},
+  "keywords": []
+}
