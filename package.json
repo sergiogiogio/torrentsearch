@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "description": "Torrent search from command line",
   "main": "main.js",
-  "dependencies": {},
-  "devDependencies": {
+  "dependencies": {
     "terminal-widgets": "*",
     "chalk": "*",
     "torrentflix": "*",
     "filesize-parser": "*",
     "date.js": "*"
   },
+  "devDependencies": { },
   "bin": {
     "torrentsearch": "bin/torrentsearch"
   },
