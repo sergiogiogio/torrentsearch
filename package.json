@@ -1,34 +1,36 @@
 {
   "name": "torrentsearch",
-  "description": "CLI to search torrent sites and stream with peerflix.",
-  "version": "7.0.3",
-  "homepage": "https://github.com/",
-  "author": {
-    "name": "ItzBlitz98"
+  "version": "0.1.0",
+  "description": "Torrent search from command line",
+  "main": "main.js",
+  "dependencies": {},
+  "devDependencies": {
+    "terminal-widgets": "*",
+    "chalk": "*",
+    "torrentflix": "*",
+    "filesize-parser": "*",
+    "date.js": "*"
+  },
+  "bin": {
+    "torrentsearch": "bin/torrentsearch"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/sergiogiogio/torrentsearch.git"
   },
-  "bugs": {
-    "url": "https://github.com/"
-  },
-  "licenses": [
-    {
-      "type": "MIT"
-    }
+  "keywords": [
+    "torrent",
+    "search",
+    "command-line",
+    "terminal"
   ],
-  "bin": {
-    "torrentflix": "bin/torrentflix"
+  "author": "sergiogiogio",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sergiogiogio/torrentsearch/issues"
   },
-  "scripts": {},
-  "preferGlobal": true,
-  "dependencies": {
-	  "chalk": "*",
-	  "torrentflix": "*",
-	  "filesize-parser": "*",
-	  "date.js": "*"
-  },
-  "devDependencies": {},
-  "keywords": []
+  "homepage": "https://github.com/sergiogiogio/torrentsearch#readme"
 }

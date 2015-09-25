@@ -1,6 +1,6 @@
 
-var torrent_search = require("torrentflix/lib/torrent_search.js");
-var terminalWidgets = require("../terminal/terminal-menu.js");
+var torrent_search = require("./torrent_search.js");
+var terminalWidgets = require("terminal-widgets");
 var chalk = require('chalk');
 var fileSizeParser = require('filesize-parser');
 var dateParser = require("date.js");
@@ -283,6 +283,5 @@ var stdinListener = function() {
 };
 process.stdin.on('readable', stdinListener);
 
-console.log("012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789");
 widgetContext.draw();
 
