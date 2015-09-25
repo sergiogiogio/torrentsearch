@@ -1,6 +1,6 @@
 {
   "name": "torrentsearch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Torrent search from command line",
   "main": "main.js",
   "dependencies": {
@@ -10,7 +10,7 @@
     "filesize-parser": "*",
     "date.js": "*"
   },
-  "devDependencies": { },
+  "devDependencies": {},
   "bin": {
     "torrentsearch": "bin/torrentsearch"
   },
