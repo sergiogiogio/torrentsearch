@@ -5,7 +5,7 @@ var chalk = require('chalk');
 var fileSizeParser = require('filesize-parser');
 var dateParser = require("date.js");
 
-// "limetorrents" "https://kat.cr"
+// "limetorrents" "http://limetorrents.cc"
 // "extratorrent" "http://extratorrent.cc"
 // "thepiratebay" "https://thepiratebay.la"
 // "yts" "https://yts.to"
@@ -19,7 +19,7 @@ var dateParser = require("date.js");
 // :17,27s/\/\/ "\([^"]\+\)" "\([^"]\+\)"/function() { var obj = require("torrentflix\/lib\/\1.js"); return { name: "\1", search: function(query) { return obj.search(query, null, null, "\2"); } }  }(),/	
 
 var scrapers = [
-	function() { var obj = require("torrentflix/lib/limetorrents.js"); return { name: "limetorrents", search: function(query) { return obj.search(query, null, null, "https://kat.cr"); } }  }(),
+	function() { var obj = require("torrentflix/lib/limetorrents.js"); return { name: "limetorrents", search: function(query) { return obj.search(query, null, 1, "http://limetorrents.cc"); } }  }(),
 	function() { var obj = require("torrentflix/lib/extratorrent.js"); return { name: "extratorrent", search: function(query) { return obj.search(query, null, null, "http://extratorrent.cc"); } }  }(),
 	function() { var obj = require("torrentflix/lib/thepiratebay.js"); return { name: "thepiratebay", search: function(query) { return obj.search(query, null, null, "https://thepiratebay.la"); } }  }(),
 	function() { var obj = require("torrentflix/lib/yts.js"); return { name: "yts", search: function(query) { return obj.search(query, null, null, "https://yts.to"); } }  }(),
@@ -33,15 +33,15 @@ var scrapers = [
 	function() { var obj = require("./cpasbien.js"); return { name: "cpasbien", search: function(query) { return obj.search(query, "http://www.cpasbien.pw"); } }  }()
 ];
 
-//scrapers = [ scrapers[11] ];
+//scrapers = [ scrapers[0] ];
 
-var results = [];
+var results = [], allResults = [];
 
 // ============
 // UI
 // ============
 var widgetContext = new terminalWidgets.WidgetContext();
-var uiWidth = 100;
+var uiWidth = 80;
 
 var resultsMenuItemStyle = function(selected, focused) {
 	if(selected && focused) return chalk.black.bgWhite;
@@ -83,24 +83,33 @@ var resultsMenu = new terminalWidgets.Menu(uiWidth, 10, {
 			
 
 
-			var line = terminalWidgets.padRight(torrent.torrent_num + ".", columnWidths[0], hScroll) + "|"
-				+ terminalWidgets.padRight(printable(torrent.title), columnWidths[2], hScroll) + "|"
-				+ terminalWidgets.padRight(printable(torrent.torrent_verified), columnWidths[4], hScroll) + "|"
-				+ terminalWidgets.padRight(printable(torrent.date_added), columnWidths[6], hScroll) + "|"
-				+ terminalWidgets.padRight(printable(torrent.size), columnWidths[8], hScroll) + "|"
-				+ terminalWidgets.padRight(printable(torrent.seeds), columnWidths[10], hScroll) + "|" 
-				+ terminalWidgets.padRight(printable(torrent.leechs), columnWidths[12], hScroll);
+			var line = terminalWidgets.padRightStop(torrent.scraper.name, columnWidths[0], hScroll) + "|"
+				+ terminalWidgets.padRightStop(printable(torrent.title), columnWidths[2], hScroll) + "|"
+				+ terminalWidgets.padRightStop(printable(torrent.torrent_verified), columnWidths[4], hScroll) + "|"
+				+ terminalWidgets.padRightStop(printable(torrent.date_added), columnWidths[6], hScroll) + "|"
+				+ terminalWidgets.padRightStop(printable(torrent.size), columnWidths[8], hScroll) + "|"
+				+ terminalWidgets.padRightStop(printable(torrent.seeds), columnWidths[10], hScroll) + "|" 
+				+ terminalWidgets.padRightStop(printable(torrent.leechs), columnWidths[12], hScroll);
 			return  resultsMenuItemStyle(current, widgetContext.focusedWidget === resultsMenu) (line);
 		},
                 itemSelected: function(item) {
-			processTorrent(results[item], function(success, message) {
-				if(success) {
-					process.exit();
-				} else {
-					setDebugMessage("processTorrent", message, encodeURI(results[item].torrent_link || results[item].torrent_site));
-					widgetContext.draw();
-				}
-			});
+			if(results[item])
+				processTorrent(results[item], function(success, message) {
+					if(success) {
+						process.exit();
+					} else {
+						setDebugMessage("processTorrent", message, encodeURI(results[item].torrent_link || results[item].torrent_site));
+						widgetContext.draw();
+					}
+				});
+		},
+		handleKeyEvent: function(key) {
+			if(key >= "\x20") { // printable + backspace
+				widgetContext.setFocus( searchFieldInput );
+				searchFieldInput.handleKeyEvent(key);
+				return true;
+			}
+			return false;
 		}
         });
 
@@ -140,13 +149,20 @@ var parseFileSize = function(str) {
 			.replace(/[^\x20-\x7E]/g, "")
 			.replace(/[^:]*:/,"")
 			.replace(/\.([a-zA-Z])/g,"$1")
-			.replace(/([kKmMgG])[oO]/, "$1B");
+			.replace(/([kmg])[o]/gi, "$1B")
+			.replace(/(byte)($|[^s])/gi, "$1s$2");
 		
 		return fileSizeParser(str);
 	} catch(e) {
 		setDebugMessage("parseFileSize", e, str);
 		return 0;
 	}
+}
+
+var parseCount = function(str) {
+	str = (str || "").toString().trim()
+		.replace(/,/g, "");
+	return Number(str);
 }
 
 
@@ -158,13 +174,17 @@ var sortOptionsMenuItemStyle = function(selected, focused) {
 
 var sortOptionSelected = -1;
 var sortOptions = [
-	{ name: "seeds", compareFunction: function(a, b) { return (b.seeds || 0) - (a.seeds || 0); } },
+	{ name: "seeds", compareFunction: function(a, b) { return parseCount(b.seeds) - parseCount(a.seeds); } },
 	{ name: "age", compareFunction: function(a, b) { return parseDate(b.date_added || "") - parseDate(a.date_added || ""); } },
 	{ name: "size", compareFunction: function(a, b) { return parseFileSize(b.size || "") - parseFileSize(a.size || "");} }
 ];
-var sortResults = function() {
+var refreshResults = function() {
+	results = allResults.filter(function(item) {
+		return item.title.toLowerCase().indexOf(searchFieldInput.lines[0].toLowerCase()) >= 0;
+	});
 	if(sortOptionSelected >= 0)
 		results.sort( sortOptions[sortOptionSelected].compareFunction );
+	resultsMenu.shiftVCursor(0); // refresh the view if needed
 }
 var sortOptionsMenu = new terminalWidgets.Menu(Math.floor(uiWidth*20/100), sortOptions.length, {
                 itemsCount: function() { return sortOptions.length; },
@@ -174,7 +194,7 @@ var sortOptionsMenu = new terminalWidgets.Menu(Math.floor(uiWidth*20/100), sortO
 		},
                 itemSelected: function(item) {
 			sortOptionSelected = item;
-			sortResults();
+			refreshResults();
 			widgetContext.setFocus(resultsMenu);
 			widgetContext.draw();
 		}
@@ -184,6 +204,40 @@ var layoutTopWidgets = [ scrapersStatusLabel, sortOptionsMenu ];
 var layoutTop = new terminalWidgets.HBoxLayout({
                 itemsCount: function() { return layoutTopWidgets.length; },
                 item: function(item) { return layoutTopWidgets[item]; }
+        });
+
+var searchFieldHeaderText = "Search: ";
+var searchFieldHeaderLabel = new terminalWidgets.Label(searchFieldHeaderText.length, 1, {
+                item: function(item, width) {
+			return (widgetContext.focusedWidget === searchFieldInput ? chalk.white : chalk.gray)(searchFieldHeaderText);
+		}
+        });
+var searchFieldInput = new terminalWidgets.Input(uiWidth-searchFieldHeaderText.length, 1, {
+		maxLines: function() { return 1 },
+                item: function(line, cursorColumn, width, hScrollPos) {
+			var line = terminalWidgets.padRight(line, width, hScrollPos);
+			if(cursorColumn >= 0 && widgetContext.focusedWidget === searchFieldInput)
+				line = line.substring(0, cursorColumn-hScrollPos) + chalk.bgBlue(line[cursorColumn-hScrollPos]) + line.substring(cursorColumn-hScrollPos+1);
+			return (widgetContext.focusedWidget === searchFieldInput ? chalk.white : chalk.gray)(line);
+		},
+		textModified : function() {
+			refreshResults();
+		},
+		handleKeyEvent: function(key) {
+			if(key < "\x20") { // not printable
+				widgetContext.setFocus( resultsMenu );
+				resultsMenu.handleKeyEvent(key);
+				return true;
+			}
+			return false;
+		}
+        });
+
+
+var layoutSearchWidgets= [ searchFieldHeaderLabel, searchFieldInput ];
+var layoutSearch = new terminalWidgets.HBoxLayout({
+                itemsCount: function() { return layoutSearchWidgets.length; },
+                item: function(item) { return layoutSearchWidgets[item]; }
         });
 
 
@@ -203,7 +257,7 @@ var debugLabel = new terminalWidgets.Label(uiWidth, 3, {
         });
 
 
-var layoutWidgets = [ layoutTop, resultsMenu ];
+var layoutWidgets = [ layoutTop, resultsMenu, layoutSearch ];
 var layout = new terminalWidgets.VBoxLayout({
                 itemsCount: function() { return layoutWidgets.length; },
                 item: function(item) { return layoutWidgets[item]; }
@@ -216,6 +270,7 @@ var layout = new terminalWidgets.VBoxLayout({
 widgetContext.setWidget(layout);
 widgetContext.setFocus(resultsMenu);
 
+var tabOrder = [ resultsMenu, sortOptionsMenu, searchFieldInput ];
 
 // ===================
 // Main 
@@ -238,7 +293,9 @@ for (i in scrapers) { (function() {
 		function (data) {
 			scraper.status = "ok";
 			scraper.status_message = "" + data.length + " torrents found";
-			results.push.apply(results, data);
+			data.forEach( function(item) { item.scraper = scraper; } );
+			allResults.push.apply(allResults, data);
+			refreshResults();
 			widgetContext.draw();
 		}, function (err) {
 			scraper.status = "error";
@@ -275,9 +332,9 @@ var stdinListener = function() {
         if(key != null) {
                 if(key.compare(new Buffer([ 3 ])) == 0) process.exit();
                 else if(key.compare(new Buffer([ 9 ])) == 0) {
-			widgetContext.setFocus( (widgetContext.focusedWidget === resultsMenu) ? sortOptionsMenu : resultsMenu );
+			widgetContext.setFocus( tabOrder[ (tabOrder.indexOf(widgetContext.focusedWidget) + 1) % tabOrder.length ] );
 		}
-                widgetContext.handleKeyEvent(key);
+                else widgetContext.handleKeyEvent(key);
                 widgetContext.draw();
         }
 };
