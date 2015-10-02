@@ -34,6 +34,7 @@ var scrapers = [
 ];
 
 //scrapers = [ scrapers[0] ];
+//scrapers = [ ];
 
 var results = [], allResults = [];
 
@@ -41,7 +42,10 @@ var results = [], allResults = [];
 // UI
 // ============
 var widgetContext = new terminalWidgets.WidgetContext();
-var uiWidth = 80;
+var savUiWidth = process.stdout.columns;
+var uiWidth = function() {
+	return savUiWidth;
+};
 
 var resultsMenuItemStyle = function(selected, focused) {
 	if(selected && focused) return chalk.black.bgWhite;
@@ -57,31 +61,39 @@ var scraperStyle = function(status) {
 	return function(str){ return str; };
 }
 
+var nostyle = function(str) { return str; };
+
 var printable = function(str) {
 	return (str || "").toString().trim().replace(/[^\x20-\x7E]/g, ".");
 }
 
-var scrapersStatusLabel = new terminalWidgets.Label(Math.floor(uiWidth*80/100), scrapers.length, {
+var scrapersStatusLabel = new terminalWidgets.Label({
+		width: function() { return Math.floor(uiWidth()*80/100);  },
+		height: function() { return scrapers.length; },
                 item: function(item, width) { 
+
 			return scraperStyle(scrapers[item].status) (terminalWidgets.padRight(scrapers[item].name + ": " + scrapers[item].status + ", " + scrapers[item].status_message, width)); 
 		}
         });
-var resultsMenuScrollWidth = 0;
-var resultsMenu = new terminalWidgets.Menu(uiWidth, 10, {
+var resultsMenuScrollWidth = 0, newResultsMenuScrollWidth = 0;
+var resultsMenuRedrawTimeout = null;
+var resultsMenu = new terminalWidgets.VMenu({
+		width: function() { return uiWidth() - resultsMenuVScrollBar.callback.width();  },
+		height: function() { return 10 - resultsMenuHScrollBar.callback.height(); },	
                 itemsCount: function() { return results.length; },
                 scrollWidth: function() { return resultsMenuScrollWidth; },
                 item: function(item, current, width, hScroll) {
 			var torrent = results[item];
 			var columnWidths = [ Math.floor(width*5/100), 1, 0, 1, Math.floor(width*5/100), 1, Math.floor(width*15/100), 1, Math.floor(width*15/100), 1, Math.floor(width*5/100), 1, Math.floor(width*5/100) ];
 			columnWidths[2] = width - columnWidths.reduce(function(a,b) { return a + b; });
-			var prevResultsMenuScrollWidth = resultsMenuScrollWidth;	
-			resultsMenuScrollWidth = Math.max(resultsMenuScrollWidth, printable(torrent.title).length + width - columnWidths[2]);
-			if(resultsMenuScrollWidth != prevResultsMenuScrollWidth) {
-				setTimeout(function() { widgetContext.draw(); }, 0);
-			} // async redraw (we can redraw here
-			//debugMessage = ("" + resultsMenu.hScrollPos + ", " + resultsMenuScrollWidth);
-			
-
+			newResultsMenuScrollWidth = Math.max(newResultsMenuScrollWidth, printable(torrent.title).length + width - columnWidths[2]);
+			if(resultsMenuScrollWidth != newResultsMenuScrollWidth && !resultsMenuRedrawTimeout) {
+				resultsMenuRedrawTimeout = setTimeout(function() {
+					resultsMenuScrollWidth = newResultsMenuScrollWidth;
+					widgetContext.draw();
+					resultsMenuRedrawTimeout = null;
+				}, 0);
+			} // async redraw (we can't redraw here)
 
 			var line = terminalWidgets.padRightStop(torrent.scraper.name, columnWidths[0], hScroll) + "|"
 				+ terminalWidgets.padRightStop(printable(torrent.title), columnWidths[2], hScroll) + "|"
@@ -96,7 +108,8 @@ var resultsMenu = new terminalWidgets.Menu(uiWidth, 10, {
 			if(results[item])
 				processTorrent(results[item], function(success, message) {
 					if(success) {
-						process.exit();
+						widgetContext.draw();
+						
 					} else {
 						setDebugMessage("processTorrent", message, encodeURI(results[item].torrent_link || results[item].torrent_site));
 						widgetContext.draw();
@@ -113,6 +126,31 @@ var resultsMenu = new terminalWidgets.Menu(uiWidth, 10, {
 		}
         });
 
+var resultsMenuVScrollBar = new terminalWidgets.VScrollBar({
+        height: function() { return resultsMenu.callback.height(); },
+        width: function() { return (resultsMenu.callback.itemsCount() > resultsMenu.callback.height()) ? 1 : 0; },
+        scrollBarInfo: function(size) {
+                return terminalWidgets.scrollBarInfo(resultsMenu.topItem, resultsMenu.callback.height(), resultsMenu.callback.itemsCount(), size);
+        },
+        item: function(bar, width) {
+                return (bar? chalk.bgBlue : nostyle)(terminalWidgets.padRight("", width));
+        }
+});
+
+
+var resultsMenuHScrollBar = new terminalWidgets.HScrollBar({
+        height: function() { return (resultsMenu.callback.scrollWidth() > 0) ? 1 : 0; },
+        width: function() { return resultsMenu.callback.width(); },
+        scrollBarInfo: function(size) {
+                var ret = terminalWidgets.scrollBarInfo(resultsMenu.hScrollPos, resultsMenu.callback.width(), resultsMenu.callback.scrollWidth(), size);
+		//console.log("" + resultsMenu.hScrollPos + "," + resultsMenu.callback.width() + ", " + resultsMenu.callback.scrollWidth() + "," + size + " = " + ret.beg + ", " + ret.end);
+		return ret;
+        },
+        item: function(beg, end, width) {
+		//console.log("" + beg + "," + end + ", " + width);
+                return terminalWidgets.padRight("", beg) + chalk.bgGreen(terminalWidgets.padRight("", end-beg)) + terminalWidgets.padRight("", width-end);
+        }
+});
 
 var parseDate = function(str) {
 	var ret;
@@ -186,7 +224,9 @@ var refreshResults = function() {
 		results.sort( sortOptions[sortOptionSelected].compareFunction );
 	resultsMenu.shiftVCursor(0); // refresh the view if needed
 }
-var sortOptionsMenu = new terminalWidgets.Menu(Math.floor(uiWidth*20/100), sortOptions.length, {
+var sortOptionsMenu = new terminalWidgets.VMenu({
+		width: function() { return uiWidth() - scrapersStatusLabel.callback.width();  },
+		height: function() { return sortOptions.length; },
                 itemsCount: function() { return sortOptions.length; },
                 scrollWidth: function() { return 0; },
                 item: function(item, current, width, hScroll) {
@@ -200,19 +240,18 @@ var sortOptionsMenu = new terminalWidgets.Menu(Math.floor(uiWidth*20/100), sortO
 		}
         });
 
-var layoutTopWidgets = [ scrapersStatusLabel, sortOptionsMenu ];
-var layoutTop = new terminalWidgets.HBoxLayout({
-                itemsCount: function() { return layoutTopWidgets.length; },
-                item: function(item) { return layoutTopWidgets[item]; }
-        });
 
 var searchFieldHeaderText = "Search: ";
-var searchFieldHeaderLabel = new terminalWidgets.Label(searchFieldHeaderText.length, 1, {
+var searchFieldHeaderLabel = new terminalWidgets.Label({
+		width: function() { return searchFieldHeaderText.length; },
+		height: function() { return 1; },
                 item: function(item, width) {
 			return (widgetContext.focusedWidget === searchFieldInput ? chalk.white : chalk.gray)(searchFieldHeaderText);
 		}
         });
-var searchFieldInput = new terminalWidgets.Input(uiWidth-searchFieldHeaderText.length, 1, {
+var searchFieldInput = new terminalWidgets.Input({
+		width: function() { return Math.max(0, uiWidth() - searchFieldHeaderText.length);  },
+		height: function() { return 1; },
 		maxLines: function() { return 1 },
                 item: function(line, cursorColumn, width, hScrollPos) {
 			var line = terminalWidgets.padRight(line, width, hScrollPos);
@@ -233,20 +272,13 @@ var searchFieldInput = new terminalWidgets.Input(uiWidth-searchFieldHeaderText.l
 		}
         });
 
-
-var layoutSearchWidgets= [ searchFieldHeaderLabel, searchFieldInput ];
-var layoutSearch = new terminalWidgets.HBoxLayout({
-                itemsCount: function() { return layoutSearchWidgets.length; },
-                item: function(item) { return layoutSearchWidgets[item]; }
-        });
-
-
 var debugMessage;
 var setDebugMessage = function(module, message, data) {
-	if(debugMessage === undefined) layoutWidgets.push(debugLabel);
 	debugMessage = { date: new Date(), module: module, message: message, data: data };
 }
-var debugLabel = new terminalWidgets.Label(uiWidth, 3, {
+var debugLabel = new terminalWidgets.Label({
+		width: function() { return uiWidth();  },
+		height: function() { return (debugMessage === undefined)? 0 : 3; },
                 item: function(item, width) {
 			var line = (item === 0) ? "" + debugMessage.date.toLocaleString() + " " + debugMessage.module :
 				(item === 1) ? debugMessage.message :
@@ -256,15 +288,14 @@ var debugLabel = new terminalWidgets.Label(uiWidth, 3, {
 		}
         });
 
-
-var layoutWidgets = [ layoutTop, resultsMenu, layoutSearch ];
-var layout = new terminalWidgets.VBoxLayout({
-                itemsCount: function() { return layoutWidgets.length; },
-                item: function(item) { return layoutWidgets[item]; }
-        });
-
-
-
+var layout = new terminalWidgets.VBoxLayout([
+	new terminalWidgets.HBoxLayout([ scrapersStatusLabel, sortOptionsMenu ]), 
+	new terminalWidgets.HBoxLayout([ resultsMenu, resultsMenuVScrollBar ]), 
+	resultsMenuHScrollBar,
+	new terminalWidgets.HBoxLayout([ searchFieldHeaderLabel, searchFieldInput ]), 
+	debugLabel
+]);
+	
 
 
 widgetContext.setWidget(layout);
@@ -276,13 +307,24 @@ var tabOrder = [ resultsMenu, sortOptionsMenu, searchFieldInput ];
 // Main 
 // ===================
 
-if(process.argv.length < 3) {
+
+var externalCommand = "";
+var query = "";
+var verbose = false;
+for(var i = 2 ; i < process.argv.length ; ++i) {
+	if(process.argv[i] == "--exec") externalCommand = process.argv[++i];
+	else if(process.argv[i] == "-v") verbose = true;
+	else query = process.argv[i];
+}
+
+
+if(query === "") {
 	console.log("Usage: " + process.argv[0] + " " + process.argv[1] + " <query>");
 	process.exit();
 }
 
+if(externalCommand === "") externalCommand = "echo";
 
-var query = process.argv[2];
 
 var i;
 for (i in scrapers) { (function() {
@@ -307,27 +349,61 @@ for (i in scrapers) { (function() {
 })(); }
 
 
-var processTorrent = function(torrent, callback) {
+var getTorrentLink = function(torrent, callback) {
 	if(torrent.torrent_link) {
-		console.log(encodeURI(torrent.torrent_link));
-		callback(true, "");
+		//console.log(encodeURI(torrent.torrent_link));
+		setTimeout( function() { callback(true, torrent.torrent_link); }, 0 );
 	} else if (torrent.torrent_site) {
 		torrent_search.torrentSearch(encodeURI(torrent.torrent_site)).then(
 			function(data) {
-				console.log(data);
-				callback(true, "");
+				callback(true, data);
 			}, function(err) {
-				callback(false, err);
+				callback(false, "", err);
 			}
 		);
 	} else {
-		callback(false, "don't know how to download this torrent");
+		callback(false, "", "don't know how to download this torrent");
 	}
 }
+var processTorrent = function(torrent, callback) {
+	getTorrentLink(torrent, function(success, link, err) {
+		if(success) {
+			executeExternalCommand(link, function() {
+				callback(true);
+			});
+		} else callback(false, err);
+	});
+}
 
+var externalCommandRunning = false;
+var ignoreSignal = function() {};
 
+var executeExternalCommand = function(torrent, callback) {
+	var spawn = require('child_process').spawn;
+	if (verbose) console.log(externalCommand + " \"" + torrent + "\"");
+	process.stdin.setRawMode(false);
+	var externalCommandA = externalCommand.split(" ");
+	var child = spawn(externalCommandA[0], externalCommandA.slice(1).concat(torrent), { stdio: "inherit" } );
+	//process.stdin.removeListener("readable", stdinListener);
+	//process.stdin.pipe(child.stdin);
+	//child.stdout.pipe(process.stdout);
+	//child.stderr.pipe(process.stderr);
+	process.on('SIGINT', ignoreSignal);
+	
+	externalCommandRunning = true;
+	child.on('exit', function(code, signal) {
+			externalCommandRunning = false;
+			process.stdin.setRawMode(true);
+			//process.stdin.on('readable', stdinListener);
+			process.removeListener('SIGINT', ignoreSignal);
+			callback();
+			});
+}
+
+process.stdout.write("\u001b[7l"); // disable line wrap (linewrap cause problems when resizing the window quickly: the widget is rendred with a size assumption but upon display it does not match the window size anymore)
 process.stdin.setRawMode(true);
 var stdinListener = function() {
+	if(externalCommandRunning) return; // child process will process the input
         var key = process.stdin.read();
         if(key != null) {
                 if(key.compare(new Buffer([ 3 ])) == 0) process.exit();
@@ -339,6 +415,7 @@ var stdinListener = function() {
         }
 };
 process.stdin.on('readable', stdinListener);
+process.stdout.on('resize', function() { if(externalCommandRunning) return; savUiWidth = process.stdout.columns; searchFieldInput.moveCursor({line: 0, column: 0}); widgetContext.draw(); });
 
 widgetContext.draw();
 
