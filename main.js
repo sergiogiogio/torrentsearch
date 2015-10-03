@@ -42,9 +42,8 @@ var results = [], allResults = [];
 // UI
 // ============
 var widgetContext = new terminalWidgets.WidgetContext();
-var savUiWidth = process.stdout.columns;
 var uiWidth = function() {
-	return savUiWidth;
+	return process.stdout.columns;
 };
 
 var resultsMenuItemStyle = function(selected, focused) {
@@ -107,13 +106,13 @@ var resultsMenu = new terminalWidgets.VMenu({
                 itemSelected: function(item) {
 			if(results[item])
 				processTorrent(results[item], function(success, message) {
+					widgetContext.setWidget(layout, false); // keep output of the command
 					if(success) {
-						widgetContext.draw();
 						
 					} else {
-						setDebugMessage("processTorrent", message, encodeURI(results[item].torrent_link || results[item].torrent_site));
-						widgetContext.draw();
+						logMessage("ERROR", "processTorrent", String(message), encodeURI(results[item].torrent_link || results[item].torrent_site));
 					}
+					widgetContext.draw();
 				});
 		},
 		handleKeyEvent: function(key) {
@@ -172,7 +171,7 @@ var parseDate = function(str) {
 		ret = dateParser(str);
 
 	} catch(e) {
-		setDebugMessage("parseDate", e, str);
+		logMessage("ERROR", "parseDate", e, str);
 		return new Date(-8640000000000000); // http://stackoverflow.com/questions/11526504/minimum-and-maximum-date
 	}
 	var currentDate = new Date();
@@ -192,7 +191,7 @@ var parseFileSize = function(str) {
 		
 		return fileSizeParser(str);
 	} catch(e) {
-		setDebugMessage("parseFileSize", e, str);
+		logMessage("ERROR", "parseFileSize", e, str);
 		return 0;
 	}
 }
@@ -218,7 +217,7 @@ var sortOptions = [
 ];
 var refreshResults = function() {
 	results = allResults.filter(function(item) {
-		return item.title.toLowerCase().indexOf(searchFieldInput.lines[0].toLowerCase()) >= 0;
+		return item.title.toLowerCase().indexOf(searchFieldInputLines[0].toLowerCase()) >= 0;
 	});
 	if(sortOptionSelected >= 0)
 		results.sort( sortOptions[sortOptionSelected].compareFunction );
@@ -249,7 +248,8 @@ var searchFieldHeaderLabel = new terminalWidgets.Label({
 			return (widgetContext.focusedWidget === searchFieldInput ? chalk.white : chalk.gray)(searchFieldHeaderText);
 		}
         });
-var searchFieldInput = new terminalWidgets.Input({
+var searchFieldInputLines = [];
+var searchFieldInput = new terminalWidgets.Input(searchFieldInputLines, {
 		width: function() { return Math.max(0, uiWidth() - searchFieldHeaderText.length);  },
 		height: function() { return 1; },
 		maxLines: function() { return 1 },
@@ -272,18 +272,18 @@ var searchFieldInput = new terminalWidgets.Input({
 		}
         });
 
-var debugMessage;
-var setDebugMessage = function(module, message, data) {
-	debugMessage = { date: new Date(), module: module, message: message, data: data };
+var debugMessages = Array(3);
+var debugMessagesTop = 0, debugMessagesCurrent = 0;
+var logMessage = function(level, module, message, data) {
+	if(debugMessages[debugMessagesCurrent]) debugMessagesTop = (debugMessagesTop+1) % debugMessages.length;
+	debugMessages[debugMessagesCurrent] = { date: new Date(), module: module, message: message, data: data };
+	debugMessagesCurrent = (debugMessagesCurrent+1) % debugMessages.length;
 }
 var debugLabel = new terminalWidgets.Label({
 		width: function() { return uiWidth();  },
-		height: function() { return (debugMessage === undefined)? 0 : 3; },
+		height: function() { return (debugMessages[debugMessagesTop] === undefined)? 0 : debugMessages.length; },
                 item: function(item, width) {
-			var line = (item === 0) ? "" + debugMessage.date.toLocaleString() + " " + debugMessage.module :
-				(item === 1) ? debugMessage.message :
-				(item === 2) ? "data: " + debugMessage.data :
-				"";
+			var line = debugMessages[(debugMessagesTop+item) % debugMessages.length] ? debugMessages[(debugMessagesTop+item) % debugMessages.length].message.replace(/\n/,"") : "";
 			return chalk.yellow(terminalWidgets.padRight(line, width)); 
 		}
         });
@@ -308,23 +308,29 @@ var tabOrder = [ resultsMenu, sortOptionsMenu, searchFieldInput ];
 // ===================
 
 
-var externalCommand = "";
+var externalCommand = [];
 var query = "";
 var verbose = false;
+var help = false;
 for(var i = 2 ; i < process.argv.length ; ++i) {
-	if(process.argv[i] == "--exec") externalCommand = process.argv[++i];
+	if(process.argv[i].startsWith("--exec")) {
+		var separator = process.argv[i].substr("--exec".length) || ";";
+		while(++i < process.argv.length && process.argv[i] != separator) {
+			externalCommand.push(process.argv[i]);
+		}
+	}
 	else if(process.argv[i] == "-v") verbose = true;
+	else if(["-h", "-?", "--help"].indexOf(process.argv[i]) >= 0) help = true;
 	else query = process.argv[i];
 }
 
-
-if(query === "") {
-	console.log("Usage: " + process.argv[0] + " " + process.argv[1] + " <query>");
+if(query === "" || help) {
+	console.log("Usage: " + process.argv[0] + " " + process.argv[1] + " <query> [--exec command [initial-arguments]]");
+	console.log("    initial-arguments: {} will be replaced by the torrent link");
 	process.exit();
 }
 
-if(externalCommand === "") externalCommand = "echo";
-
+if(externalCommand.length === 0) externalCommand = [ "echo", "{}" ];
 
 var i;
 for (i in scrapers) { (function() {
@@ -349,16 +355,17 @@ for (i in scrapers) { (function() {
 })(); }
 
 
-var getTorrentLink = function(torrent, callback) {
+var resolveTorrentLink = function(torrent, callback) {
 	if(torrent.torrent_link) {
 		//console.log(encodeURI(torrent.torrent_link));
 		setTimeout( function() { callback(true, torrent.torrent_link); }, 0 );
 	} else if (torrent.torrent_site) {
 		torrent_search.torrentSearch(encodeURI(torrent.torrent_site)).then(
 			function(data) {
-				callback(true, data);
+				torrent.torrent_link = data;
+				callback(true);
 			}, function(err) {
-				callback(false, "", err);
+				callback(false, err);
 			}
 		);
 	} else {
@@ -366,13 +373,14 @@ var getTorrentLink = function(torrent, callback) {
 	}
 }
 var processTorrent = function(torrent, callback) {
-	getTorrentLink(torrent, function(success, link, err) {
-		if(success) {
-			executeExternalCommand(link, function() {
-				callback(true);
-			});
-		} else callback(false, err);
-	});
+	if(!torrent.torrent_link) {
+		logMessage("INFO", "parseTorrent", "Resolving torrent link...");
+		resolveTorrentLink(torrent, function(success, err){
+			if(success) processTorrent(torrent, callback);
+			else callback(false, err);
+		});
+	}
+	executeExternalCommand(torrent, callback);
 }
 
 var externalCommandRunning = false;
@@ -380,27 +388,32 @@ var ignoreSignal = function() {};
 
 var executeExternalCommand = function(torrent, callback) {
 	var spawn = require('child_process').spawn;
-	if (verbose) console.log(externalCommand + " \"" + torrent + "\"");
 	process.stdin.setRawMode(false);
-	var externalCommandA = externalCommand.split(" ");
-	var child = spawn(externalCommandA[0], externalCommandA.slice(1).concat(torrent), { stdio: "inherit" } );
-	//process.stdin.removeListener("readable", stdinListener);
-	//process.stdin.pipe(child.stdin);
-	//child.stdout.pipe(process.stdout);
-	//child.stderr.pipe(process.stderr);
-	process.on('SIGINT', ignoreSignal);
-	
-	externalCommandRunning = true;
-	child.on('exit', function(code, signal) {
-			externalCommandRunning = false;
-			process.stdin.setRawMode(true);
-			//process.stdin.on('readable', stdinListener);
-			process.removeListener('SIGINT', ignoreSignal);
-			callback();
-			});
+	var translatedCommand = externalCommand.map( function(item) {
+		switch(item) {
+			case "{}": return torrent.torrent_link;
+			default: return item;
+		}
+	});
+	logMessage("INFO", "executeExternalCommand", "Starting ext command...");
+	setTimeout(function() { // delay execution so that the widget finishes impending drawing
+		var child = spawn(translatedCommand[0], translatedCommand.slice(1), { stdio: "inherit" } );
+		process.on('SIGINT', ignoreSignal);
+		externalCommandRunning = true;
+		child.on('close', function(code, signal) {
+				console.log("");i // add extra "\n" to the child output else we will overwrite the last line
+				logMessage("INFO", "executeExternalCommand", "Ext command result: " + code + ", " + signal);
+				externalCommandRunning = false;
+				process.stdin.setRawMode(true);
+				process.removeListener('SIGINT', ignoreSignal);
+				callback(true);
+				});
+	},0);
 }
 
-process.stdout.write("\u001b[7l"); // disable line wrap (linewrap cause problems when resizing the window quickly: the widget is rendred with a size assumption but upon display it does not match the window size anymore)
+process.stdout.write("\u001b[?7l"); // disable line wrap (linewrap causes problems when resizing the window quickly: the widget is rendred with a size assumption but upon display it does not match the window size anymore)
+process.on("exit", function() { process.stdout.write("\u001b[?7h"); }); // reenable linewrap on exit
+
 process.stdin.setRawMode(true);
 var stdinListener = function() {
 	if(externalCommandRunning) return; // child process will process the input
@@ -415,7 +428,7 @@ var stdinListener = function() {
         }
 };
 process.stdin.on('readable', stdinListener);
-process.stdout.on('resize', function() { if(externalCommandRunning) return; savUiWidth = process.stdout.columns; searchFieldInput.moveCursor({line: 0, column: 0}); widgetContext.draw(); });
+process.stdout.on('resize', function() { if(externalCommandRunning) return; searchFieldInput.moveCursor({line: 0, column: 0}); widgetContext.draw(); });
 
 widgetContext.draw();
 
