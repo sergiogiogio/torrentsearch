@@ -1,5 +1,5 @@
 
-var torrent_search = require("./torrent_search.js");
+var torrent_search = require("torrentflix/lib/torrent_search.js");
 var terminalWidgets = require("terminal-widgets");
 var chalk = require('chalk');
 var fileSizeParser = require('filesize-parser');
@@ -30,7 +30,7 @@ var scrapers = [
 	function() { var obj = require("torrentflix/lib/strike.js"); return { name: "strike", search: function(query) { return obj.search(query, null, null, "https://getstrike.net"); } }  }(),
 	function() { var obj = require("torrentflix/lib/kickass.js"); return { name: "kickass", search: function(query) { return obj.search(query, null, null, "https://www.kat.cr"); } }  }(),
 	function() { var obj = require("torrentflix/lib/tokyotosho.js"); return { name: "tokyotosho", search: function(query) { return obj.search(query, null, null, "https://www.tokyotosho.info"); } }  }(),
-	function() { var obj = require("./cpasbien.js"); return { name: "cpasbien", search: function(query) { return obj.search(query, "http://www.cpasbien.pw"); } }  }()
+	function() { var obj = require("torrentflix/lib/cpasbien.js"); return { name: "cpasbien", search: function(query) { return obj.search(query, "http://www.cpasbien.pw"); } }  }()
 ];
 
 //scrapers = [ scrapers[0] ];
@@ -379,6 +379,7 @@ var processTorrent = function(torrent, callback) {
 			if(success) processTorrent(torrent, callback);
 			else callback(false, err);
 		});
+		return;
 	}
 	executeExternalCommand(torrent, callback);
 }
@@ -396,13 +397,14 @@ var executeExternalCommand = function(torrent, callback) {
 		}
 	});
 	logMessage("INFO", "executeExternalCommand", "Starting ext command...");
+	widgetContext.draw();
 	setTimeout(function() { // delay execution so that the widget finishes impending drawing
 		var child = spawn(translatedCommand[0], translatedCommand.slice(1), { stdio: "inherit" } );
 		process.on('SIGINT', ignoreSignal);
 		externalCommandRunning = true;
 		child.on('close', function(code, signal) {
 				console.log("");i // add extra "\n" to the child output else we will overwrite the last line
-				logMessage("INFO", "executeExternalCommand", "Ext command result: " + code + ", " + signal);
+				logMessage("INFO", "executeExternalCommand", "Ext command result: " + (signal || code));
 				externalCommandRunning = false;
 				process.stdin.setRawMode(true);
 				process.removeListener('SIGINT', ignoreSignal);
