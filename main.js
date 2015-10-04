@@ -43,7 +43,8 @@ var results = [], allResults = [];
 // ============
 var widgetContext = new terminalWidgets.WidgetContext();
 var uiWidth = function() {
-	return process.stdout.columns;
+	if(process.platform.startsWith("win")) return Math.min(100, process.stdout.columns); // on windows process.stdout.columns return the number of columns of the buffer, not the number of visible columns
+	else return process.stdout.columns;
 };
 
 var resultsMenuItemStyle = function(selected, focused) {
@@ -320,14 +321,24 @@ for(var i = 2 ; i < process.argv.length ; ++i) {
 		}
 	}
 	else if(process.argv[i] == "-v") verbose = true;
-	else if(["-h", "-?", "--help"].indexOf(process.argv[i]) >= 0) help = true;
+	else if(["-h", "-?", "--help"].indexOf(process.argv[i]) >= 0) {
+		console.log("Usage: " + process.argv[0] + " " + process.argv[1] + " query-string [--exec command [initial-arguments]]");
+		console.log("    --exec command: command to start when selecting a torrent");
+		console.log("       the command will be started with initial-arguments list, with {} replaced by the torrent link");
+		console.log("    --help: this help");
+		console.log("    --version: version number");
+		process.exit(0); // EX_OK
+	}
+	else if(["-v", "--version"].indexOf(process.argv[i]) >= 0) {
+		console.log(require("./package.json").version);
+		process.exit(0); // EX_OK
+	}
 	else query = process.argv[i];
 }
 
-if(query === "" || help) {
-	console.log("Usage: " + process.argv[0] + " " + process.argv[1] + " <query> [--exec command [initial-arguments]]");
-	console.log("    initial-arguments: {} will be replaced by the torrent link");
-	process.exit();
+if(query === "") {
+	console.error("Missing query-string, check usage with -h");
+	process.exit(64); // EX_USAGE
 }
 
 if(externalCommand.length === 0) externalCommand = [ "echo", "{}" ];
@@ -421,7 +432,7 @@ var stdinListener = function() {
 	if(externalCommandRunning) return; // child process will process the input
         var key = process.stdin.read();
         if(key != null) {
-                if(key.compare(new Buffer([ 3 ])) == 0) process.exit();
+                if(key.compare(new Buffer([ 3 ])) == 0) process.exit(0); // EX_OK
                 else if(key.compare(new Buffer([ 9 ])) == 0) {
 			widgetContext.setFocus( tabOrder[ (tabOrder.indexOf(widgetContext.focusedWidget) + 1) % tabOrder.length ] );
 		}
