@@ -1,7 +1,7 @@
 # torrentsearch
 
 A command line tool to search torrents in popular tracker sites and returning their link or magnets.
-The sites covered are the ones from https://github.com/ItzBlitz98/torrentflix
+The sites covered are the ones from [torrentflix](https://github.com/ItzBlitz98/torrentflix).
 
 Main features:
 * command line based
@@ -35,7 +35,7 @@ torrentsearch <search-query> --exec <command>
 --exec enables to run any common upon torrent selection. The string {} will be replaced with the torrent link
 
 # example
-Search for Big Bucks Bunny and use aria2c to download the selected file
+Search for Big Buck Bunny and use aria2c to download the selected file
 ```
-torrentsearch "Big Bucks Bunny" --exec aria2c {}
+torrentsearch "Big Buck Bunny" --exec aria2c {}
 ```
