@@ -4,6 +4,7 @@ var terminalWidgets = require("terminal-widgets");
 var chalk = require('chalk');
 var fileSizeParser = require('filesize-parser');
 var dateParser = require("date.js");
+var util = require("util");
 
 // "limetorrents" "http://limetorrents.cc"
 // "extratorrent" "http://extratorrent.cc"
@@ -70,26 +71,26 @@ var printable = function(str) {
 var scrapersStatusLabel = new terminalWidgets.Label({
 		width: function() { return Math.floor(uiWidth()*80/100);  },
 		height: function() { return scrapers.length; },
-                item: function(item, width) { 
+                render: function(item, width) { 
 
 			return scraperStyle(scrapers[item].status) (terminalWidgets.padRight(scrapers[item].name + ": " + scrapers[item].status + ", " + scrapers[item].status_message, width)); 
 		}
         });
-var resultsMenuScrollWidth = 0, newResultsMenuScrollWidth = 0;
+var resultsMenuMaxTextScroll = 0, newResultsMenuMaxTextScroll = 0;
 var resultsMenuRedrawTimeout = null;
 var resultsMenu = new terminalWidgets.VMenu({
 		width: function() { return uiWidth() - resultsMenuVScrollBar.callback.width();  },
 		height: function() { return 10 - resultsMenuHScrollBar.callback.height(); },	
                 itemsCount: function() { return results.length; },
-                scrollWidth: function() { return resultsMenuScrollWidth; },
-                item: function(item, current, width, hScroll) {
+                maxTextScroll: function() { return resultsMenuMaxTextScroll; },
+                render: function(item, line, current, width, hScroll) {
 			var torrent = results[item];
 			var columnWidths = [ Math.floor(width*5/100), 1, 0, 1, Math.floor(width*5/100), 1, Math.floor(width*15/100), 1, Math.floor(width*15/100), 1, Math.floor(width*5/100), 1, Math.floor(width*5/100) ];
 			columnWidths[2] = width - columnWidths.reduce(function(a,b) { return a + b; });
-			newResultsMenuScrollWidth = Math.max(newResultsMenuScrollWidth, printable(torrent.title).length + width - columnWidths[2]);
-			if(resultsMenuScrollWidth != newResultsMenuScrollWidth && !resultsMenuRedrawTimeout) {
+			newResultsMenuMaxTextScroll = Math.max(newResultsMenuMaxTextScroll, printable(torrent.title).length + width - columnWidths[2]);
+			if(resultsMenuMaxTextScroll != newResultsMenuMaxTextScroll && !resultsMenuRedrawTimeout) {
 				resultsMenuRedrawTimeout = setTimeout(function() {
-					resultsMenuScrollWidth = newResultsMenuScrollWidth;
+					resultsMenuMaxTextScroll = newResultsMenuMaxTextScroll;
 					widgetContext.draw();
 					resultsMenuRedrawTimeout = null;
 				}, 0);
@@ -126,29 +127,20 @@ var resultsMenu = new terminalWidgets.VMenu({
 		}
         });
 
-var resultsMenuVScrollBar = new terminalWidgets.VScrollBar({
+var resultsMenuVScrollBar = resultsMenu.newVScrollBar({
         height: function() { return resultsMenu.callback.height(); },
         width: function() { return (resultsMenu.callback.itemsCount() > resultsMenu.callback.height()) ? 1 : 0; },
-        scrollBarInfo: function(size) {
-                return terminalWidgets.scrollBarInfo(resultsMenu.topItem, resultsMenu.callback.height(), resultsMenu.callback.itemsCount(), size);
-        },
-        item: function(bar, width) {
-                return (bar? chalk.bgBlue : nostyle)(terminalWidgets.padRight("", width));
+        render: function(component, line, width) {
+                return (component === 0 ? chalk.bgBlue : nostyle)(terminalWidgets.padRight("", width));
         }
 });
 
 
-var resultsMenuHScrollBar = new terminalWidgets.HScrollBar({
-        height: function() { return (resultsMenu.callback.scrollWidth() > 0) ? 1 : 0; },
+var resultsMenuHScrollBar = resultsMenu.newHScrollBar({
+        height: function() { return (resultsMenu.callback.maxTextScroll() > 0) ? 1 : 0; },
         width: function() { return resultsMenu.callback.width(); },
-        scrollBarInfo: function(size) {
-                var ret = terminalWidgets.scrollBarInfo(resultsMenu.hScrollPos, resultsMenu.callback.width(), resultsMenu.callback.scrollWidth(), size);
-		//console.log("" + resultsMenu.hScrollPos + "," + resultsMenu.callback.width() + ", " + resultsMenu.callback.scrollWidth() + "," + size + " = " + ret.beg + ", " + ret.end);
-		return ret;
-        },
-        item: function(beg, end, width) {
-		//console.log("" + beg + "," + end + ", " + width);
-                return terminalWidgets.padRight("", beg) + chalk.bgGreen(terminalWidgets.padRight("", end-beg)) + terminalWidgets.padRight("", width-end);
+        render: function(component, line, width) {
+                return (component === 0 ? chalk.bgBlue : nostyle)(terminalWidgets.padRight("", width));
         }
 });
 
@@ -218,18 +210,17 @@ var sortOptions = [
 ];
 var refreshResults = function() {
 	results = allResults.filter(function(item) {
-		return item.title.toLowerCase().indexOf(searchFieldInputLines[0].toLowerCase()) >= 0;
+		return item.title.toLowerCase().indexOf(searchFieldInputText[0].toLowerCase()) >= 0;
 	});
 	if(sortOptionSelected >= 0)
 		results.sort( sortOptions[sortOptionSelected].compareFunction );
-	resultsMenu.shiftVCursor(0); // refresh the view if needed
+	resultsMenu.moveCurrentItem({ row: 0, col: 0 }); // refresh the view if needed
 }
 var sortOptionsMenu = new terminalWidgets.VMenu({
 		width: function() { return uiWidth() - scrapersStatusLabel.callback.width();  },
 		height: function() { return sortOptions.length; },
                 itemsCount: function() { return sortOptions.length; },
-                scrollWidth: function() { return 0; },
-                item: function(item, current, width, hScroll) {
+                render: function(item, line, current, width, hScroll) {
 			return sortOptionsMenuItemStyle(current, widgetContext.focusedWidget === sortOptionsMenu)(terminalWidgets.padBoth((item == sortOptionSelected ? "*" : "") + sortOptions[item].name, width));
 		},
                 itemSelected: function(item) {
@@ -245,20 +236,17 @@ var searchFieldHeaderText = "Search: ";
 var searchFieldHeaderLabel = new terminalWidgets.Label({
 		width: function() { return searchFieldHeaderText.length; },
 		height: function() { return 1; },
-                item: function(item, width) {
+                render: function(item, width) {
 			return (widgetContext.focusedWidget === searchFieldInput ? chalk.white : chalk.gray)(searchFieldHeaderText);
 		}
         });
-var searchFieldInputLines = [];
-var searchFieldInput = new terminalWidgets.Input(searchFieldInputLines, {
+var searchFieldInputText = [];
+var searchFieldInput = new terminalWidgets.Input(searchFieldInputText, {
 		width: function() { return Math.max(0, uiWidth() - searchFieldHeaderText.length);  },
 		height: function() { return 1; },
-		maxLines: function() { return 1 },
-                item: function(line, cursorColumn, width, hScrollPos) {
-			var line = terminalWidgets.padRight(line, width, hScrollPos);
-			if(cursorColumn >= 0 && widgetContext.focusedWidget === searchFieldInput)
-				line = line.substring(0, cursorColumn-hScrollPos) + chalk.bgBlue(line[cursorColumn-hScrollPos]) + line.substring(cursorColumn-hScrollPos+1);
-			return (widgetContext.focusedWidget === searchFieldInput ? chalk.white : chalk.gray)(line);
+		textMaxLines: function() { return 1 },
+                render: function(component, line, start, width) {
+                        return (widgetContext.focusedWidget === searchFieldInput ? chalk.white : chalk.gray)((component === 0 ? chalk.bgGreen : nostyle)(terminalWidgets.padRight(searchFieldInputText[line].substr(start, width), width)));
 		},
 		textModified : function() {
 			refreshResults();
@@ -283,7 +271,7 @@ var logMessage = function(level, module, message, data) {
 var debugLabel = new terminalWidgets.Label({
 		width: function() { return uiWidth();  },
 		height: function() { return (debugMessages[debugMessagesTop] === undefined)? 0 : debugMessages.length; },
-                item: function(item, width) {
+                render: function(item, width) {
 			var line = debugMessages[(debugMessagesTop+item) % debugMessages.length] ? debugMessages[(debugMessagesTop+item) % debugMessages.length].message.replace(/\n/,"") : "";
 			return chalk.yellow(terminalWidgets.padRight(line, width)); 
 		}
