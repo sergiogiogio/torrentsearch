@@ -5,33 +5,48 @@ var chalk = require('chalk');
 var fileSizeParser = require('filesize-parser');
 var dateParser = require("date.js");
 var util = require("util");
+var fs = require("fs");
 
-// "limetorrents" "http://limetorrents.cc"
-// "extratorrent" "http://extratorrent.cc"
-// "thepiratebay" "https://thepiratebay.la"
-// "yts" "https://yts.to"
-// "btdigg" "https://btdigg.org"
-// "seedpeer" "http://seedpeer.eu"
-// "1337x" "https://1337x.to"
-// "nyaa" "http://www.nyaa.se"
-// "strike" "https://getstrike.net"
-// "kickass" "https://www.kat.cr"
-// "tokyotosho" "https://www.tokyotosho.info"
-// :17,27s/\/\/ "\([^"]\+\)" "\([^"]\+\)"/function() { var obj = require("torrentflix\/lib\/\1.js"); return { name: "\1", search: function(query) { return obj.search(query, null, null, "\2"); } }  }(),/	
+
+var torrent_sources = {
+	"kickass_url":      "https://kat.cr",
+	"limetorrents_url": "http://limetorrents.cc",
+	"extratorrent_url": "http://extratorrent.cc",
+	"strike_url":       "https://getstrike.net",
+	"yts_url":          "https://yts.ag",
+	"tpb_url":          "https://thepiratebay.la",
+	"btdigg_url":       "https://btdigg.org",
+	"seedpeer_url":     "http://seedpeer.eu",
+	"leetx_url":        "https://1337x.to",
+	"nyaa_url":         "http://www.nyaa.se",
+	"tokyotosho_url":   "https://www.tokyotosho.info",
+	"cpasbien_url":     "http://www.cpasbien.io",
+	"eztv_url":         "https://www.eztv.ag",
+	"rarbg_api_url":    "https://torrentapi.org"
+}
+
+
+// extract sites urls
+try {
+	var script_torrent_sources = fs.readFileSync("node_moodules/torrentflix/lib/cli.js", "utf-8");
+	var str_torrent_sources = script_torrent_sources.match(/var torrent_sources = ({[\s\S]*?})/);
+	torrent_sources = JSON.parse(str_torrent_sources[1]);
+} catch(e) { }
 
 var scrapers = [
-	function() { var obj = require("torrentflix/lib/limetorrents.js"); return { name: "limetorrents", search: function(query) { return obj.search(query, null, 1, "http://limetorrents.cc"); } }  }(),
-	function() { var obj = require("torrentflix/lib/extratorrent.js"); return { name: "extratorrent", search: function(query) { return obj.search(query, null, null, "http://extratorrent.cc"); } }  }(),
-	function() { var obj = require("torrentflix/lib/thepiratebay.js"); return { name: "thepiratebay", search: function(query) { return obj.search(query, null, null, "https://thepiratebay.la"); } }  }(),
-	function() { var obj = require("torrentflix/lib/yts.js"); return { name: "yts", search: function(query) { return obj.search(query, null, null, "https://yts.to"); } }  }(),
-	function() { var obj = require("torrentflix/lib/btdigg.js"); return { name: "btdigg", search: function(query) { return obj.search(query, "https://btdigg.org"); } }  }(),
-	function() { var obj = require("torrentflix/lib/seedpeer.js"); return { name: "seedpeer", search: function(query) { return obj.search(query, "http://seedpeer.eu"); } }  }(),
-	function() { var obj = require("torrentflix/lib/1337x.js"); return { name: "1337x", search: function(query) { return obj.search(query, "https://1337x.to"); } }  }(),
-	function() { var obj = require("torrentflix/lib/nyaa.js"); return { name: "nyaa", search: function(query) { return obj.search(query, null, null, "http://www.nyaa.se"); } }  }(),
-	function() { var obj = require("torrentflix/lib/strike.js"); return { name: "strike", search: function(query) { return obj.search(query, null, null, "https://getstrike.net"); } }  }(),
-	function() { var obj = require("torrentflix/lib/kickass.js"); return { name: "kickass", search: function(query) { return obj.search(query, null, null, "https://www.kat.cr"); } }  }(),
-	function() { var obj = require("torrentflix/lib/tokyotosho.js"); return { name: "tokyotosho", search: function(query) { return obj.search(query, null, null, "https://www.tokyotosho.info"); } }  }(),
-	function() { var obj = require("torrentflix/lib/cpasbien.js"); return { name: "cpasbien", search: function(query) { return obj.search(query, "http://www.cpasbien.pw"); } }  }()
+	function() { var obj = require("torrentflix/lib/limetorrents.js"); return { name: "limetorrents", search: function(query) { return obj.search(query, null, 1, torrent_sources["limetorrents_url"]); } }  }(),
+	function() { var obj = require("torrentflix/lib/extratorrent.js"); return { name: "extratorrent", search: function(query) { return obj.search(query, null, null, torrent_sources["extratorrent_url"]); } }  }(),
+	function() { var obj = require("torrentflix/lib/thepiratebay.js"); return { name: "thepiratebay", search: function(query) { return obj.search(query, null, null, torrent_sources["tpb_url"]); } }  }(),
+	function() { var obj = require("torrentflix/lib/yts.js"); return { name: "yts", search: function(query) { return obj.search(query, null, null, torrent_sources["yts_url"]); } }  }(),
+	function() { var obj = require("torrentflix/lib/btdigg.js"); return { name: "btdigg", search: function(query) { return obj.search(query, torrent_sources["btdigg_url"]); } }  }(),
+	function() { var obj = require("torrentflix/lib/seedpeer.js"); return { name: "seedpeer", search: function(query) { return obj.search(query, torrent_sources["seedpeer_url"]); } }  }(),
+	function() { var obj = require("torrentflix/lib/1337x.js"); return { name: "1337x", search: function(query) { return obj.search(query, torrent_sources["leetx_url"]); } }  }(),
+	function() { var obj = require("torrentflix/lib/nyaa.js"); return { name: "nyaa", search: function(query) { return obj.search(query, null, null, torrent_sources["nyaa_url"]); } }  }(),
+	function() { var obj = require("torrentflix/lib/strike.js"); return { name: "strike", search: function(query) { return obj.search(query, null, null, torrent_sources["strike_url"]); } }  }(),
+	function() { var obj = require("torrentflix/lib/kickass.js"); return { name: "kickass", search: function(query) { return obj.search(query, null, null, torrent_sources["kickass_url"]); } }  }(),
+	function() { var obj = require("torrentflix/lib/tokyotosho.js"); return { name: "tokyotosho", search: function(query) { return obj.search(query, null, null, torrent_sources["tokyotosho_url"]); } }  }(),
+	function() { var obj = require("torrentflix/lib/cpasbien.js"); return { name: "cpasbien", search: function(query) { return obj.search(query, torrent_sources["cpasbien_url"]); } }  }(),
+	function() { var obj = require("torrentflix/lib/eztv.js"); return { name: "eztv", search: function(query) { return obj.search(query, torrent_sources["eztv_url"]); } }  }()
 ];
 
 //scrapers = [ scrapers[0] ];
@@ -277,10 +292,19 @@ var debugLabel = new terminalWidgets.Label({
 		}
         });
 
+var resultsMenuScrollBarPad = new terminalWidgets.Label({
+		width: function() { return resultsMenuVScrollBar.callback.width();  },
+		height: function() { return resultsMenuHScrollBar.callback.height(); },
+                render: function(item, width) {
+			return terminalWidgets.padRight(" ", width); 
+		}
+        });
+
 var layout = new terminalWidgets.VBoxLayout([
 	new terminalWidgets.HBoxLayout([ scrapersStatusLabel, sortOptionsMenu ]), 
 	new terminalWidgets.HBoxLayout([ resultsMenu, resultsMenuVScrollBar ]), 
-	resultsMenuHScrollBar,
+	new terminalWidgets.HBoxLayout([ resultsMenuHScrollBar, resultsMenuScrollBarPad ]), 
+	//resultsMenuHScrollBar,
 	new terminalWidgets.HBoxLayout([ searchFieldHeaderLabel, searchFieldInput ]), 
 	debugLabel
 ]);
@@ -429,7 +453,7 @@ var stdinListener = function() {
         }
 };
 process.stdin.on('readable', stdinListener);
-process.stdout.on('resize', function() { if(externalCommandRunning) return; searchFieldInput.moveCursor({line: 0, column: 0}); widgetContext.draw(); });
+process.stdout.on('resize', function() { if(externalCommandRunning) return; searchFieldInput.moveCursor({line: 0, col: 0}); widgetContext.draw(); });
 
 widgetContext.draw();
 
