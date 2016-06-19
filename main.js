@@ -35,8 +35,7 @@ try {
 	var config_vars = eval("(" + str_config_vars[1] + ")");
 	torrent_sources = config_vars.torrent_sources;
 } catch(e) {
-	console.log(chalk.yellow("Could not extract torrent sources urls from torrentflix, using hardcoded urls instead"));
-	console.log(""); // added because the UI deletes one extra line (reason unknown)
+	console.log(chalk.yellow("Warning: Could not extract torrent sources urls from torrentflix, using hardcoded urls instead"));
 }
 
 var scrapers = [
