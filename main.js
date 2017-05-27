@@ -51,8 +51,44 @@ var scrapers = [
 	function() { var obj = require("torrentflix/lib/kickass.js"); return { name: "kickass", search: function(query) { return obj.search(query, torrent_sources["kickass"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/tokyotosho.js"); return { name: "tokyotosho", search: function(query) { return obj.search(query, torrent_sources["tokyotosho"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/cpasbien.js"); return { name: "cpasbien", search: function(query) { return obj.search(query, torrent_sources["cpasbien"].url); } }  }(),
-	function() { var obj = require("torrentflix/lib/eztv.js"); return { name: "eztv", search: function(query) { return obj.search(query, torrent_sources["eztv"].url); } }  }()
+	function() { var obj = require("torrentflix/lib/eztv.js"); return { name: "eztv", search: function(query) { return obj.search(query, torrent_sources["eztv"].url); } }  }(),
+	function() { return { name: "legittorrents", search: function(query) { return qbittorrent_search(query, "legittorrents"); } }  }()
 ];
+
+
+var qbittorrent_search = function(query, engine) {
+	// https://github.com/qbittorrent/qBittorrent/wiki/How-to-write-a-search-plugin
+	return new Promise((resolve, reject) => {
+		const spawn = require('child_process').spawn;
+		const cmd = spawn('python2', ['qbittorrent/nova/nova2.py', engine, 'all', query]);
+		const readline = require('readline');
+		const rl = readline.createInterface({
+			input: cmd.stdout
+		});
+		var data = [];
+		rl.on('line', (input) => {
+			// format: link|name|size|seeds|leech|engine_url
+			var splits = input.split('|');
+			data.push({
+				torrent_link: splits[0], title: splits[1], size: splits[2], seeds: splits[3], leechs: splits[4]
+			});
+		});
+		cmd.stderr.on('data', (data) => {
+			//console.log(`stderr: ${data}`);
+		});
+		cmd.on('close', (code) => {
+			//console.log(`child process exited with code ${code}`);
+			if(code >= 0)
+				resolve(data);
+			else
+				reject("error code " + code);
+			
+		});
+	})
+	
+}
+
+
 
 //scrapers = [ scrapers[0] ];
 //scrapers = [ ];
