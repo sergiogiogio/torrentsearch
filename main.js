@@ -7,12 +7,14 @@ var dateParser = require("date.js");
 var util = require("util");
 var fs = require("fs");
 var domain = require("domain");
+var path = require("path");
 
 
 var torrent_sources = {
 	"kickass": { name: 'Kickass', url: "https://kat.cr" },
 	"limetorrents": { name: 'LimeTorrents', url: "http://limetorrents.cc" },
 	"extratorrent": { name: 'ExtraTorrent', url: "http://extratorrent.cc" },
+	"sky": { name: 'Skytorrents', url: "https://skytorrents.in" },
 	"strike": { name: 'GetStrike', url: "https://getstrike.net" },
 	"yts": { name: 'YTS', url: "https://yts.ag" },
 	"tpb": { name: 'The Pirate Bay', url: "https://thepiratebay.la" },
@@ -21,9 +23,11 @@ var torrent_sources = {
 	"leetx": { name: '1337x', url: "https://1337x.to" },
 	"nyaa": { name: 'Nyaa', url: "http://www.nyaa.se" },
 	"tokyotosho": { name: 'Tokiotosho', url: "https://www.tokyotosho.info" },
-	"cpasbien": { name: 'Cpasbien', url: "http://www.cpasbien.io" },
+	"cpasbien": { name: 'Cpasbien', url: "http://www.cpasbien.tv" },
 	"eztv": { name: 'Eztv', url: "https://www.eztv.ag" },
 	"rarbg": { name: 'Rarbg', url: "https://torrentapi.org" },
+	"xbit": { name: 'Xbit', url: "https://xbit.pw" },
+	"zooqle": { name: 'Zooqle', url: "https://zooqle.com" },
 	"torrentproject": { name: 'TorrentProject', url: "https://www.torrentproject.se" }
 }
 
@@ -38,23 +42,27 @@ try {
 	console.log(chalk.yellow("Warning: Could not extract torrent sources urls from torrentflix, using hardcoded urls instead"));
 }
 
+var scrapers = [];
+
 var scrapers = [
 	function() { var obj = require("torrentflix/lib/limetorrents.js"); return { name: "limetorrents", search: function(query) { return obj.search(query, torrent_sources["limetorrents"].url); } }  }(),
-	function() { var obj = require("torrentflix/lib/extratorrent.js"); return { name: "extratorrent", search: function(query) { return obj.search(query, torrent_sources["extratorrent"].url); } }  }(),
+//	function() { var obj = require("torrentflix/lib/extratorrent.js"); return { name: "extratorrent", search: function(query) { return obj.search(query, torrent_sources["extratorrent"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/thepiratebay.js"); return { name: "thepiratebay", search: function(query) { return obj.search(query, torrent_sources["tpb"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/yts.js"); return { name: "yts", search: function(query) { return obj.search(query, torrent_sources["yts"].url); } }  }(),
-	function() { var obj = require("torrentflix/lib/btdigg.js"); return { name: "btdigg", search: function(query) { return obj.search(query, torrent_sources["btdigg"].url); } }  }(),
-	function() { var obj = require("torrentflix/lib/seedpeer.js"); return { name: "seedpeer", search: function(query) { return obj.search(query, torrent_sources["seedpeer"].url); } }  }(),
+//	function() { var obj = require("torrentflix/lib/btdigg.js"); return { name: "btdigg", search: function(query) { return obj.search(query, torrent_sources["btdigg"].url); } }  }(),
+//	function() { var obj = require("torrentflix/lib/seedpeer.js"); return { name: "seedpeer", search: function(query) { return obj.search(query, torrent_sources["seedpeer"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/1337x.js"); return { name: "1337x", search: function(query) { return obj.search(query, torrent_sources["leetx"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/nyaa.js"); return { name: "nyaa", search: function(query) { return obj.search(query, torrent_sources["nyaa"].url); } }  }(),
-	function() { var obj = require("torrentflix/lib/strike.js"); return { name: "strike", search: function(query) { return obj.search(query, torrent_sources["strike"].url); } }  }(),
+//	function() { var obj = require("torrentflix/lib/strike.js"); return { name: "strike", search: function(query) { return obj.search(query, torrent_sources["strike"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/kickass.js"); return { name: "kickass", search: function(query) { return obj.search(query, torrent_sources["kickass"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/tokyotosho.js"); return { name: "tokyotosho", search: function(query) { return obj.search(query, torrent_sources["tokyotosho"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/cpasbien.js"); return { name: "cpasbien", search: function(query) { return obj.search(query, torrent_sources["cpasbien"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/eztv.js"); return { name: "eztv", search: function(query) { return obj.search(query, torrent_sources["eztv"].url); } }  }(),
-	function() { return { name: "legittorrents", search: function(query) { return qbittorrent_search(query, "legittorrents"); } }  }()
+	function() { var obj = require("torrentflix/lib/xbit.js"); return { name: "xbit", search: function(query) { return obj.search(query, torrent_sources["xbit"].url); } }  }(),
+	function() { var obj = require("torrentflix/lib/zooqle.js"); return { name: "zooqle", search: function(query) { return obj.search(query, torrent_sources["zooqle"].url); } }  }(),
+	function() { var obj = require("torrentflix/lib/skytorrents.js"); return { name: "sky", search: function(query) { return obj.search(query, torrent_sources["sky"].url); } }  }(),
+	//function() { return { name: "legittorrents", search: function(query) { return qbittorrent_search(query, "legittorrents"); } }  }()
 ];
-
 
 var qbittorrent_search = function(query, engine) {
 	// https://github.com/qbittorrent/qBittorrent/wiki/How-to-write-a-search-plugin
@@ -88,6 +96,41 @@ var qbittorrent_search = function(query, engine) {
 	
 }
 
+// load search plugins
+/* === disabled for now
+var pluginsPath = path.join(__dirname, "plugins"); 
+
+var torrentflixPluginsPath = path.join(pluginsPath, "torrentflix");
+
+require("fs").readdirSync(torrentflixPluginsPath).forEach(function(filename) {
+	var obj = require(path.join(torrentflixPluginsPath, filename));
+	var parsedPath = path.parse(filename);
+	if(torrent_sources[parsedPath.name] === undefined) {
+		console.log(chalk.yellow("Warning: unknown url for torrentflix plugin '" + parsedPath.name + "', plugin skipped"));
+		return;
+	}
+	scrapers.push({
+		 name: parsedPath.name,
+		 search: function(query) {
+			 return obj.search(query, torrent_sources[parsedPath.name].url);
+		 }
+	})
+});
+	
+
+var qbittorrentPluginsPath = path.join(__dirname, "qbittorrent/nova/engines");
+
+require("fs").readdirSync(qbittorrentPluginsPath).forEach(function(filename) {
+	var parsedPath = path.parse(filename);
+	if(parsedPath.ext === ".py") {
+		scrapers.push({
+			 name: parsedPath.name,
+			 search: function(query) {
+				 return qbittorrent_search(query, parsedPath.name);
+			 }
+		})
+	}
+});*/
 
 
 //scrapers = [ scrapers[0] ];
