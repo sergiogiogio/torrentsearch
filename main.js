@@ -1,3 +1,4 @@
+'use strict';
 
 var torrent_search = require("torrentflix/lib/torrent_search.js");
 var terminalWidgets = require("terminal-widgets");
@@ -56,7 +57,7 @@ var scrapers = [
 //	function() { var obj = require("torrentflix/lib/strike.js"); return { name: "strike", search: function(query) { return obj.search(query, torrent_sources["strike"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/kickass.js"); return { name: "kickass", search: function(query) { return obj.search(query, torrent_sources["kickass"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/tokyotosho.js"); return { name: "tokyotosho", search: function(query) { return obj.search(query, torrent_sources["tokyotosho"].url); } }  }(),
-	function() { var obj = require("torrentflix/lib/cpasbien.js"); return { name: "cpasbien", search: function(query) { return obj.search(query, torrent_sources["cpasbien"].url); } }  }(),
+//	function() { var obj = require("torrentflix/lib/cpasbien.js"); return { name: "cpasbien", search: function(query) { return obj.search(query, torrent_sources["cpasbien"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/eztv.js"); return { name: "eztv", search: function(query) { return obj.search(query, torrent_sources["eztv"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/xbit.js"); return { name: "xbit", search: function(query) { return obj.search(query, torrent_sources["xbit"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/zooqle.js"); return { name: "zooqle", search: function(query) { return obj.search(query, torrent_sources["zooqle"].url); } }  }(),
@@ -68,7 +69,7 @@ var qbittorrent_search = function(query, engine) {
 	// https://github.com/qbittorrent/qBittorrent/wiki/How-to-write-a-search-plugin
 	return new Promise((resolve, reject) => {
 		const spawn = require('child_process').spawn;
-		const cmd = spawn('python2', ['qbittorrent/nova/nova2.py', engine, 'all', query]);
+		const cmd = spawn('python2', ['plugins/qbittorrent/nova/nova2.py', engine, 'all', query]);
 		const readline = require('readline');
 		const rl = readline.createInterface({
 			input: cmd.stdout
@@ -97,9 +98,9 @@ var qbittorrent_search = function(query, engine) {
 }
 
 // load search plugins
-/* === disabled for now
 var pluginsPath = path.join(__dirname, "plugins"); 
 
+/* === disabled for now
 var torrentflixPluginsPath = path.join(pluginsPath, "torrentflix");
 
 require("fs").readdirSync(torrentflixPluginsPath).forEach(function(filename) {
@@ -116,13 +117,26 @@ require("fs").readdirSync(torrentflixPluginsPath).forEach(function(filename) {
 		 }
 	})
 });
+*/
 	
 
-var qbittorrentPluginsPath = path.join(__dirname, "qbittorrent/nova/engines");
+/*
+Installation:
+
+mkdir plugins
+cd plugins
+mkdir qbittorrent	
+cd qbittorrent
+svn export "https://github.com/qbittorrent/qBittorrent.git/trunk/src/searchengine/nova"
+svn export --force "https://github.com/qbittorrent/search-plugins.git/trunk/nova/engines"	
+
+*/
+
+var qbittorrentPluginsPath = path.join(pluginsPath, "qbittorrent/nova/engines");
 
 require("fs").readdirSync(qbittorrentPluginsPath).forEach(function(filename) {
 	var parsedPath = path.parse(filename);
-	if(parsedPath.ext === ".py") {
+	if(parsedPath.ext === ".py" && parsedPath.name != "__init__") {
 		scrapers.push({
 			 name: parsedPath.name,
 			 search: function(query) {
@@ -130,7 +144,7 @@ require("fs").readdirSync(qbittorrentPluginsPath).forEach(function(filename) {
 			 }
 		})
 	}
-});*/
+});
 
 
 //scrapers = [ scrapers[0] ];
@@ -143,6 +157,7 @@ var results = [], allResults = [];
 // ============
 var widgetContext = new terminalWidgets.WidgetContext();
 var uiWidth = function() {
+	if(overrideUiWidth) return overrideUiWidth;
 	if(process.platform.startsWith("win")) return Math.min(100, process.stdout.columns); // on windows process.stdout.columns return the number of columns of the buffer, not the number of visible columns
 	else return process.stdout.columns;
 };
@@ -409,6 +424,7 @@ var externalCommand = [];
 var query = "";
 var verbose = false;
 var help = false;
+var overrideUiWidth = null; 
 for(var i = 2 ; i < process.argv.length ; ++i) {
 	if(process.argv[i].startsWith("--exec")) {
 		var separator = process.argv[i].substr("--exec".length) || ";";
@@ -417,6 +433,9 @@ for(var i = 2 ; i < process.argv.length ; ++i) {
 		}
 	}
 	else if(process.argv[i] == "-v") verbose = true;
+	else if(process.argv[i] == "-c" && i < process.argv.length-1) {
+		overrideUiWidth = parseInt(process.argv[++i]);
+	}
 	else if(["-h", "-?", "--help"].indexOf(process.argv[i]) >= 0) {
 		console.log("Usage: " + process.argv[0] + " " + process.argv[1] + " query-string [--exec command [initial-arguments]]");
 		console.log("    --exec command: command to start when selecting a torrent");
@@ -455,7 +474,7 @@ for (i in scrapers) { (function() {
 			function (data) {
 				scraper.status = "ok";
 				scraper.status_message = "" + data.length + " torrents found";
-				data.forEach( function(item) { item.scraper = scraper; } );
+				data.forEach( function(item) { item.title = item.title || "<UNKNOW>"; item.scraper = scraper; } );
 				allResults.push.apply(allResults, data);
 				refreshResults();
 				widgetContext.draw();
@@ -531,10 +550,10 @@ process.on("exit", function() { process.stdout.write("\u001b[?7h"); }); // reena
 process.stdin.setRawMode(true);
 var stdinListener = function() {
 	if(externalCommandRunning) return; // child process will process the input
-        var key = process.stdin.read();
-        if(key != null) {
-                if(key.compare(new Buffer([ 3 ])) == 0) process.exit(0); // EX_OK
-                else if(key.compare(new Buffer([ 9 ])) == 0) {
+        var key;
+        while((key = process.stdin.read()) != null) {
+                if(key.compare(new Buffer.from([ 3 ])) == 0) process.exit(0); // EX_OK
+                else if(key.compare(new Buffer.from([ 9 ])) == 0) {
 			widgetContext.setFocus( tabOrder[ (tabOrder.indexOf(widgetContext.focusedWidget) + 1) % tabOrder.length ] );
 		}
                 else widgetContext.handleKeyEvent(key);

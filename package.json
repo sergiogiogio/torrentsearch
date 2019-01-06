@@ -4,11 +4,11 @@
   "description": "Torrent search from command line",
   "main": "main.js",
   "dependencies": {
-    "terminal-widgets": "*",
     "chalk": "*",
-    "torrentflix": "*",
+    "date.js": "*",
     "filesize-parser": "*",
-    "date.js": "*"
+    "terminal-widgets": "*",
+    "torrentflix": "*"
   },
   "devDependencies": {},
   "bin": {
