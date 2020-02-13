@@ -11,6 +11,8 @@ var domain = require("domain");
 var path = require("path");
 
 
+
+
 var torrent_sources = {
 	"kickass": { name: 'Kickass', url: "https://kat.cr" },
 	"limetorrents": { name: 'LimeTorrents', url: "http://limetorrents.cc" },
@@ -45,25 +47,26 @@ try {
 
 var scrapers = [];
 
-var scrapers = [
+scrapers = [
 	function() { var obj = require("torrentflix/lib/limetorrents.js"); return { name: "limetorrents", search: function(query) { return obj.search(query, torrent_sources["limetorrents"].url); } }  }(),
-//	function() { var obj = require("torrentflix/lib/extratorrent.js"); return { name: "extratorrent", search: function(query) { return obj.search(query, torrent_sources["extratorrent"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/thepiratebay.js"); return { name: "thepiratebay", search: function(query) { return obj.search(query, torrent_sources["tpb"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/yts.js"); return { name: "yts", search: function(query) { return obj.search(query, torrent_sources["yts"].url); } }  }(),
-//	function() { var obj = require("torrentflix/lib/btdigg.js"); return { name: "btdigg", search: function(query) { return obj.search(query, torrent_sources["btdigg"].url); } }  }(),
-//	function() { var obj = require("torrentflix/lib/seedpeer.js"); return { name: "seedpeer", search: function(query) { return obj.search(query, torrent_sources["seedpeer"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/1337x.js"); return { name: "1337x", search: function(query) { return obj.search(query, torrent_sources["leetx"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/nyaa.js"); return { name: "nyaa", search: function(query) { return obj.search(query, torrent_sources["nyaa"].url); } }  }(),
-//	function() { var obj = require("torrentflix/lib/strike.js"); return { name: "strike", search: function(query) { return obj.search(query, torrent_sources["strike"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/kickass.js"); return { name: "kickass", search: function(query) { return obj.search(query, torrent_sources["kickass"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/tokyotosho.js"); return { name: "tokyotosho", search: function(query) { return obj.search(query, torrent_sources["tokyotosho"].url); } }  }(),
-//	function() { var obj = require("torrentflix/lib/cpasbien.js"); return { name: "cpasbien", search: function(query) { return obj.search(query, torrent_sources["cpasbien"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/eztv.js"); return { name: "eztv", search: function(query) { return obj.search(query, torrent_sources["eztv"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/xbit.js"); return { name: "xbit", search: function(query) { return obj.search(query, torrent_sources["xbit"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/zooqle.js"); return { name: "zooqle", search: function(query) { return obj.search(query, torrent_sources["zooqle"].url); } }  }(),
 	function() { var obj = require("torrentflix/lib/skytorrents.js"); return { name: "sky", search: function(query) { return obj.search(query, torrent_sources["sky"].url); } }  }(),
-	//function() { return { name: "legittorrents", search: function(query) { return qbittorrent_search(query, "legittorrents"); } }  }()
+	function() { var obj = require("torrentflix/lib/rarbg.js"); return { name: "rarbg", search: function(query) { return obj.search(query, torrent_sources["rarbg"].url); } }  }()
 ];
+
+//scrapers = [
+//	scrapers[scrapers.length - 1]
+//];
+
+if (false) { // plugins developments disabled for now
 
 var qbittorrent_search = function(query, engine) {
 	// https://github.com/qbittorrent/qBittorrent/wiki/How-to-write-a-search-plugin
@@ -133,7 +136,7 @@ svn export --force "https://github.com/qbittorrent/search-plugins.git/trunk/nova
 */
 
 var qbittorrentPluginsPath = path.join(pluginsPath, "qbittorrent/nova/engines");
-
+try {
 require("fs").readdirSync(qbittorrentPluginsPath).forEach(function(filename) {
 	var parsedPath = path.parse(filename);
 	if(parsedPath.ext === ".py" && parsedPath.name != "__init__") {
@@ -145,7 +148,8 @@ require("fs").readdirSync(qbittorrentPluginsPath).forEach(function(filename) {
 		})
 	}
 });
-
+} catch(e) {}
+}
 
 //scrapers = [ scrapers[0] ];
 //scrapers = [ ];
@@ -442,6 +446,7 @@ for(var i = 2 ; i < process.argv.length ; ++i) {
 		console.log("       the command will be started with initial-arguments list, with {} replaced by the torrent link");
 		console.log("    --help: this help");
 		console.log("    --version: version number");
+		console.log("    -c [NUM]: number of columns in the UI");
 		process.exit(0); // EX_OK
 	}
 	else if(["-v", "--version"].indexOf(process.argv[i]) >= 0) {
